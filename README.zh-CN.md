@@ -1,3 +1,5 @@
+完全vibecoding的产物，请见谅😭
+
 # Water Stream Calculator 1.17.1
 
 [English](README.md) | 简体中文
