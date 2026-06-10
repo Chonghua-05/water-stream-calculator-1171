@@ -140,10 +140,6 @@ jobs:
           $tag = $env:RELEASE_TAG
           $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
           $notes = @'
-          # __TAG__ Windows
-
-          ## 中文
-
           匀速水道计算器首个 Windows 发行版，适用于 Minecraft Java Edition 1.17.1。
 
           本版本提供本地 Rust 后端与浏览器数据 Web，用于设计、穷举、模拟和查看掉落物水道结构。
@@ -175,8 +171,6 @@ jobs:
           - 大小：`__ASSET_SIZE__` bytes
 
           ---
-
-          ## English
 
           First Windows release of Water Stream Calculator for Minecraft Java Edition 1.17.1.
 
