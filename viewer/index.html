@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>匀速水道计算器</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1>匀速水道计算器</h1>
+          <button id="refreshButton" class="ghost-button" type="button">刷新</button>
+        </div>
+        <button id="openSettingsButton" class="ghost-button wide-button" type="button">设置</button>
+        <div id="statusLine" class="status-line"></div>
+        <div id="runList" class="run-list"></div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="hero-strip">
+          <div class="metric-card">
+            <div class="metric-card-header">
+              <span class="metric-label">测试编号</span>
+              <button id="exportCsvButton" class="ghost-button metric-action-button" type="button">导出 CSV</button>
+            </div>
+            <strong id="metricRun">-</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">稳态后平均速度</span>
+            <strong id="metricAvgSpeed">-</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">稳态后驻留命中率</span>
+            <strong id="metricHitRate">-</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">稳态入口</span>
+            <strong id="metricSteadyEntry">-</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">样本数</span>
+            <strong id="metricSamples">-</strong>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <div class="chart-panel">
+            <div class="chart-toolbar">
+              <div class="toolbar-group">
+                <div class="mode-toggle" role="group" aria-label="图表交互模式">
+                  <button id="selectModeButton" class="mode-button active" type="button">选区</button>
+                  <button id="panModeButton" class="mode-button" type="button">平移</button>
+                </div>
+                <button id="resetZoomButton" class="ghost-button" type="button">重置视图</button>
+              </div>
+              <div id="toolbarNote" class="toolbar-note">拖拽选区，滚轮缩放，点击折线点查看详情</div>
+            </div>
+            <canvas id="chartCanvas"></canvas>
+          </div>
+
+          <div class="detail-panel">
+            <div class="detail-block">
+              <div class="detail-heading">
+                <h2>本次测试</h2>
+                <div class="mode-toggle compact-toggle" role="group" aria-label="坐标显示模式">
+                  <button id="zeroCoordButton" class="mode-button active" type="button">归零</button>
+                  <button id="rawCoordButton" class="mode-button" type="button">原始</button>
+                </div>
+              </div>
+              <dl id="runDetails" class="detail-list compact-list"></dl>
+            </div>
+
+            <div class="detail-block">
+              <div class="detail-heading">
+                <h2>选中区间</h2>
+                <div class="heading-tools">
+                  <div class="mode-toggle compact-toggle" role="group" aria-label="末端位置吻合率计算方式">
+                    <button id="preciseEndButton" class="mode-button active" type="button">精确</button>
+                    <button id="truncatedEndButton" class="mode-button" type="button">舍小数</button>
+                  </div>
+                  <div id="intervalDeltaBadge" class="inline-badge">x变化量 -</div>
+                </div>
+              </div>
+              <div class="interval-inline-row">
+                <label class="inline-field">
+                  <span>起点</span>
+                  <input id="intervalStartInput" type="number" step="0.001" />
+                </label>
+                <label class="inline-field">
+                  <span>终点</span>
+                  <input id="intervalEndInput" type="number" step="0.001" />
+                </label>
+                <button id="applyIntervalButton" class="ghost-button" type="button">应用</button>
+                <button id="resetIntervalButton" class="ghost-button" type="button">重置</button>
+              </div>
+              <dl id="intervalDetails" class="detail-list compact-list"></dl>
+            </div>
+
+            <div class="detail-block">
+              <h2>选中点</h2>
+              <dl id="pointDetails" class="detail-list compact-list"></dl>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <section id="settingsView" class="settings-view" aria-hidden="true">
+      <aside class="settings-sidebar sidebar">
+        <div class="sidebar-header">
+          <h1>匀速水道计算器</h1>
+        </div>
+        <button id="closeSettingsButton" class="ghost-button wide-button" type="button">返回结果</button>
+        <div id="settingsStatus" class="status-line sidebar-header-status">就绪</div>
+        <div class="settings-tabs vertical-tabs" role="group" aria-label="设置页面">
+          <button id="paramTabButton" class="mode-button active" type="button">穷举参数</button>
+          <button id="structureTabButton" class="mode-button" type="button">结构编辑</button>
+          <button id="importTabButton" class="mode-button" type="button">投影</button>
+        </div>
+      </aside>
+
+      <main class="settings-main main-panel">
+        <div class="settings-layout">
+          <div class="settings-pages">
+            <div class="settings-page active" id="paramPage">
+              <div class="param-card-row">
+                <section class="settings-card">
+                  <h2>起始状态</h2>
+                  <div class="settings-grid compact-grid">
+                    <label class="inline-field">
+                      <span>开始 x</span>
+                      <input id="searchStartXInput" type="number" step="0.001" value="0.125" />
+                    </label>
+                    <label class="inline-field">
+                      <span>起点 y</span>
+                      <input id="searchStartYInput" type="number" step="0.001" value="0" />
+                    </label>
+                    <label class="inline-field">
+                      <span>模式</span>
+                      <select id="launchModeSelect">
+                        <option value="water">水流加速</option>
+                        <option value="piston">粘液块弹射</option>
+                      </select>
+                    </label>
+                    <label class="inline-field">
+                      <span>起始 vx</span>
+                      <input id="searchStartVxInput" type="number" step="0.001" value="0" />
+                    </label>
+                    <label class="inline-field">
+                      <span>粘液块 x</span>
+                      <input id="searchSlimeBlockXInput" type="number" step="1" value="-1" />
+                      <small class="field-help">仅弹射模式使用；表示粘液块推出前所在格。</small>
+                    </label>
+                  </div>
+                </section>
+
+              <section class="settings-card">
+                <h2>指标要求</h2>
+                <div class="settings-grid compact-grid">
+                  <label class="inline-field">
+                    <span>目标速度</span>
+                    <input id="targetSpeedInput" type="number" min="0.05" max="1" step="0.001" value="0.5" />
+                  </label>
+                  <label class="inline-field">
+                    <span>命中率要求</span>
+                    <input id="minHitRateInput" type="number" min="0" max="1" step="0.001" value="1" />
+                  </label>
+                  <label class="inline-field">
+                    <span>驻留 tick</span>
+                    <input id="targetDwellInput" type="number" min="1" max="20" step="1" value="2" />
+                  </label>
+                  <label class="inline-field">
+                    <span>模拟 gt</span>
+                    <input id="searchTicksInput" type="number" min="20" step="10" value="800" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h2>枚举规模</h2>
+                <div class="settings-grid compact-grid">
+                  <label class="inline-field">
+                    <span>加速段上限</span>
+                    <input id="maxPrefixInput" type="number" min="0" max="16" step="1" value="9" />
+                    <small class="field-help">最多尝试多少格起步/桥接加速段；越大越慢，但候选更多。</small>
+                  </label>
+                  <label class="inline-field">
+                    <span>循环长度上限</span>
+                    <input id="maxCycleInput" type="number" min="0" max="64" step="1" value="0" />
+                    <small class="field-help">0 表示不限制；填写后只尝试不超过该格数的循环结构。</small>
+                  </label>
+                  <label class="inline-field">
+                    <span>最大线程数</span>
+                    <input id="maxThreadsInput" type="number" min="1" max="64" step="1" value="8" />
+                  </label>
+                  <label class="inline-field">
+                    <span>写入数量</span>
+                    <input id="keepCandidatesInput" type="number" min="1" max="50" step="1" value="8" />
+                    <small class="field-help">搜索结束后，最多把多少个排名靠前的候选写入结果列表。</small>
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div class="settings-actions progress-actions">
+              <button id="runSearchButton" class="ghost-button primary-button" type="button">开始穷举</button>
+              <button id="stopSearchButton" class="danger-button" type="button" disabled>停止穷举</button>
+            </div>
+            <div id="searchProgressPanel" class="search-progress" aria-live="polite">
+              <div class="progress-header">
+                <span id="searchProgressLabel">等待开始</span>
+                <strong id="searchProgressPercent">0%</strong>
+              </div>
+              <div class="progress-track">
+                <div id="searchProgressBar" class="progress-bar"></div>
+              </div>
+              <div id="searchProgressDetail" class="progress-detail">设置参数后开始穷举。</div>
+            </div>
+          </div>
+
+          <div class="settings-page" id="structurePage">
+            <div class="structure-card-grid">
+              <section class="settings-card">
+                <div class="settings-card-header">
+                  <h2>结构操作</h2>
+                  <div class="settings-actions compact-actions">
+                    <button id="loadSelectedStructureButton" class="ghost-button" type="button">载入当前结果</button>
+                    <button id="addCellButton" class="ghost-button" type="button">添加</button>
+                    <button id="removeCellButton" class="danger-button" type="button">移除</button>
+                    <button id="selectAccelerationButton" class="ghost-button" type="button">选择加速段</button>
+                    <button id="selectCycleButton" class="ghost-button" type="button">选择循环段</button>
+                    <button id="markCycleButton" class="ghost-button" type="button">设选区为循环段</button>
+                    <button id="extendSelectionButton" class="ghost-button" type="button">延长选区</button>
+                    <button id="simulateStructureButton" class="ghost-button primary-button" type="button">模拟结构</button>
+                  </div>
+                </div>
+                <div class="settings-grid compact-grid structure-controls">
+                  <label class="inline-field">
+                    <span>origin x</span>
+                    <input id="structureOriginInput" type="number" step="0.001" value="0" />
+                  </label>
+                  <label class="inline-field">
+                    <span>模拟 gt</span>
+                    <input id="structureTicksInput" type="number" min="20" step="10" value="800" />
+                  </label>
+                  <label class="inline-field">
+                    <span>重复次数</span>
+                    <input id="repeatCountInput" type="number" min="1" max="1000" step="1" value="10" />
+                  </label>
+                  <label class="inline-field">
+                    <span>延长到总长度</span>
+                    <input id="extendTotalLengthInput" type="number" min="1" max="2000" step="1" value="64" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h2>掉落物初始状态</h2>
+                <div class="settings-grid compact-grid">
+                  <label class="inline-field">
+                    <span>初始 x</span>
+                    <input id="structureStartXInput" type="number" step="0.001" value="0.125" />
+                  </label>
+                  <label class="inline-field">
+                    <span>初始 y</span>
+                    <input id="structureStartYInput" type="number" step="0.001" value="0" />
+                  </label>
+                  <label class="inline-field">
+                    <span>初始 vx</span>
+                    <input id="structureStartVxInput" type="number" step="0.001" value="0" />
+                  </label>
+                  <label class="inline-field">
+                    <span>初始 vy</span>
+                    <input id="structureStartVyInput" type="number" step="0.001" value="0" />
+                  </label>
+                  <label class="inline-field checkbox-field">
+                    <input id="structureOnGroundInput" type="checkbox" checked />
+                    <span>起步在地面</span>
+                    <small class="field-help">表示第 1 tick 前是否已经处于 onGround；会影响地面摩擦和 4gt 移动判定。</small>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h2>选区单元</h2>
+                <div class="cell-inspector">
+                  <label class="inline-field">
+                    <span>水</span>
+                    <select id="cellWaterSelect">
+                      <option value="dry">干</option>
+                      <option value="source">水源</option>
+                      <option value="forward">顺流</option>
+                      <option value="reverse">逆流</option>
+                    </select>
+                  </label>
+                  <label class="inline-field">
+                    <span>水量</span>
+                    <input id="cellAmountInput" type="number" min="1" max="8" step="1" value="8" />
+                  </label>
+                  <label class="inline-field">
+                    <span>地板</span>
+                    <select id="cellFloorSelect">
+                      <option value="glass">glass</option>
+                      <option value="packed_ice">packed ice</option>
+                      <option value="blue_ice">blue ice</option>
+                      <option value="slime">slime</option>
+                    </select>
+                    <small class="field-help">玻璃与石头同为普通 0.6 摩擦；粘液块保留，因为源码中 stepOn/反弹会影响掉落物。</small>
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <section class="settings-card structure-editor-card">
+              <h2>水道结构</h2>
+              <div class="structure-editor-scroll">
+                <div id="structureGrid" class="structure-grid" aria-label="结构格子"></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="settings-page" id="importPage">
+            <section class="settings-card projection-structure-card">
+              <div class="settings-card-header">
+                <h2>当前结果投影</h2>
+                <span id="projectionStructureBadge" class="structure-badge">未选择</span>
+              </div>
+              <dl id="projectionStructureInfo" class="detail-list compact-list"></dl>
+              <div id="projectionStructurePreview" class="structure-preview-strip" aria-label="当前结果投影结构预览"></div>
+              <div class="settings-grid compact-grid export-grid">
+                <label class="inline-field">
+                  <span>循环重复</span>
+                  <input id="exportCycleRepeatInput" type="number" min="1" max="10000" step="1" value="64" />
+                </label>
+              </div>
+              <div class="settings-actions">
+                <button id="exportLitematicButton" class="ghost-button primary-button" type="button">导出当前结果投影</button>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <h2>Litematica</h2>
+              <div class="settings-grid compact-grid">
+                <label class="inline-field file-field wide-field">
+                  <span>文件</span>
+                  <input id="litematicFileInput" type="file" accept=".litematic" />
+                </label>
+                <label class="inline-field">
+                  <span>地板 y</span>
+                  <input id="litematicFloorYInput" type="number" min="0" step="1" value="0" />
+                </label>
+                <label class="inline-field">
+                  <span>水层 y</span>
+                  <input id="litematicFluidYInput" type="number" min="0" step="1" value="1" />
+                </label>
+                <label class="inline-field">
+                  <span>中心 z</span>
+                  <input id="litematicZInput" type="number" min="0" step="1" value="0" />
+                </label>
+              </div>
+              <div class="settings-actions">
+                <button id="importLitematicButton" class="ghost-button primary-button" type="button">导入到结构</button>
+              </div>
+              <pre id="importReport" class="import-report"></pre>
+            </section>
+          </div>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <script src="./app.js?v=20"></script>
+  </body>
+</html>

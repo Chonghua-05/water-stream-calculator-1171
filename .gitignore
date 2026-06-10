@@ -1,0 +1,10 @@
+artifacts/
+logs/
+rust-backend/artifacts/
+rust-backend/target/
+rust-backend/serve-web.stdout.log
+rust-backend/serve-web.stderr.log
+data/reachability-candidate-generator/
+data/viewer_data/runs/*
+!data/viewer_data/runs/index.json
+!data/viewer_data/runs/run-910002.json

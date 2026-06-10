@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "description": "Default searchable waterway structure parts. Add extra prefixAtoms, reachabilityModules, or cycles here instead of editing search code.",
+  "legend": {
+    "segmentKinds": {
+      "dry": "No water in this cell range.",
+      "still": "Source/still water with flow=0. amount defaults to 8.",
+      "flow": "One-way flowing water. direction=1 is +X, direction=-1 is -X. Water amount descends from 8 along the flow gradient."
+    },
+    "floors": {
+      "normal": "Generic normal block, friction 0.6.",
+      "packed_ice": "Packed ice, friction 0.98.",
+      "blue_ice": "Blue ice, friction 0.989.",
+      "slime": "Slime block, friction 0.8 plus slime step-on behavior."
+    }
+  },
+  "prefixAtoms": [
+    { "name": "DN", "segments": [{ "kind": "dry", "length": 1, "floors": ["normal"] }] },
+    { "name": "DI", "segments": [{ "kind": "dry", "length": 1, "floors": ["packed_ice"] }] },
+    { "name": "DB", "segments": [{ "kind": "dry", "length": 1, "floors": ["blue_ice"] }] },
+    { "name": "DS", "segments": [{ "kind": "dry", "length": 1, "floors": ["slime"] }] },
+    { "name": "SN", "segments": [{ "kind": "still", "length": 1, "floors": ["normal"], "amount": 8 }] },
+    { "name": "SI", "segments": [{ "kind": "still", "length": 1, "floors": ["packed_ice"], "amount": 8 }] },
+    { "name": "SB", "segments": [{ "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 }] },
+    { "name": "R2N", "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["normal"] }] },
+    { "name": "R2I", "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["packed_ice"] }] },
+    { "name": "R2B", "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["blue_ice"] }] },
+    { "name": "R3N", "segments": [{ "kind": "flow", "length": 3, "direction": -1, "floors": ["normal"] }] },
+    { "name": "R3I", "segments": [{ "kind": "flow", "length": 3, "direction": -1, "floors": ["packed_ice"] }] },
+    { "name": "R3B", "segments": [{ "kind": "flow", "length": 3, "direction": -1, "floors": ["blue_ice"] }] },
+    { "name": "F2N", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["normal"] }] },
+    { "name": "F2I", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F2B", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }] }
+  ],
+  "reachabilityModules": [
+    { "name": "F2I", "role": "accelerator", "cost": 3.0, "stage": 0, "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F2B", "role": "accelerator", "cost": 3.4, "stage": 0, "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }] },
+    { "name": "F3I", "role": "accelerator", "cost": 4.2, "stage": 0, "segments": [{ "kind": "flow", "length": 3, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F3B", "role": "accelerator", "cost": 4.6, "stage": 0, "segments": [{ "kind": "flow", "length": 3, "direction": 1, "floors": ["blue_ice"] }] },
+    { "name": "F4I", "role": "accelerator", "cost": 5.5, "stage": 0, "segments": [{ "kind": "flow", "length": 4, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F4B", "role": "accelerator", "cost": 6.0, "stage": 0, "segments": [{ "kind": "flow", "length": 4, "direction": 1, "floors": ["blue_ice"] }] },
+    { "name": "F5I", "role": "accelerator", "cost": 6.8, "stage": 0, "segments": [{ "kind": "flow", "length": 5, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F5B", "role": "accelerator", "cost": 7.4, "stage": 0, "segments": [{ "kind": "flow", "length": 5, "direction": 1, "floors": ["blue_ice"] }] },
+    { "name": "R2N", "role": "brake", "cost": 5.0, "stage": 1, "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["normal"] }] },
+    { "name": "R2I", "role": "brake", "cost": 4.8, "stage": 1, "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["packed_ice"] }] },
+    { "name": "R2B", "role": "brake", "cost": 4.8, "stage": 1, "segments": [{ "kind": "flow", "length": 2, "direction": -1, "floors": ["blue_ice"] }] },
+    { "name": "SN", "role": "brake", "cost": 2.5, "stage": 1, "segments": [{ "kind": "still", "length": 1, "floors": ["normal"], "amount": 8 }] },
+    { "name": "SI", "role": "phaseAdjust", "cost": 2.0, "stage": 2, "segments": [{ "kind": "still", "length": 1, "floors": ["packed_ice"], "amount": 8 }] },
+    { "name": "SB", "role": "phaseAdjust", "cost": 2.2, "stage": 2, "segments": [{ "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 }] },
+    { "name": "DN", "role": "brake", "cost": 1.8, "stage": 1, "segments": [{ "kind": "dry", "length": 1, "floors": ["normal"] }] },
+    { "name": "DI", "role": "phaseAdjust", "cost": 1.0, "stage": 2, "segments": [{ "kind": "dry", "length": 1, "floors": ["packed_ice"] }] },
+    { "name": "DB", "role": "phaseAdjust", "cost": 1.1, "stage": 2, "segments": [{ "kind": "dry", "length": 1, "floors": ["blue_ice"] }] },
+    { "name": "D2I", "role": "phaseAdjust", "cost": 2.1, "stage": 2, "segments": [{ "kind": "dry", "length": 2, "floors": ["packed_ice"] }] },
+    { "name": "D2B", "role": "phaseAdjust", "cost": 2.3, "stage": 2, "segments": [{ "kind": "dry", "length": 2, "floors": ["blue_ice"] }] },
+    { "name": "D3I", "role": "phaseAdjust", "cost": 3.1, "stage": 2, "segments": [{ "kind": "dry", "length": 3, "floors": ["packed_ice"] }] },
+    { "name": "D3B", "role": "phaseAdjust", "cost": 3.4, "stage": 2, "segments": [{ "kind": "dry", "length": 3, "floors": ["blue_ice"] }] },
+    { "name": "F2I-stab", "role": "stabilizer", "cost": 3.2, "stage": 3, "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "F3I-stab", "role": "stabilizer", "cost": 4.4, "stage": 3, "segments": [{ "kind": "flow", "length": 3, "direction": 1, "floors": ["packed_ice"] }] },
+    { "name": "DB-stab", "role": "stabilizer", "cost": 1.4, "stage": 3, "segments": [{ "kind": "dry", "length": 1, "floors": ["blue_ice"] }] }
+  ],
+  "cycles": [
+    {
+      "name": "W3-I_D3-B",
+      "proven": true,
+      "note": "Proven long-run backbone: 3 forward water cells on packed ice, 3 dry cells on blue ice.",
+      "segments": [
+        { "kind": "flow", "length": 3, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 3, "floors": ["blue_ice"] }
+      ]
+    },
+    {
+      "name": "W2-I_D2-B",
+      "note": "Dry-gap compact variant from source model search; needs game verification.",
+      "segments": [
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 2, "floors": ["blue_ice"] }
+      ]
+    },
+    {
+      "name": "W2-I_S2-I",
+      "note": "Still-source compact variant; build with intentional source-water cells only.",
+      "segments": [
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "still", "length": 2, "floors": ["packed_ice"], "amount": 8 }
+      ]
+    },
+    {
+      "name": "W2-B_S2-B",
+      "note": "Still-source compact blue-ice variant; build with intentional source-water cells only.",
+      "segments": [
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] },
+        { "kind": "still", "length": 2, "floors": ["blue_ice"], "amount": 8 }
+      ]
+    },
+    {
+      "name": "W2-I_R2-I_D1-B",
+      "note": "Reverse-water compact variant with a real two-cell water gradient; needs game verification.",
+      "segments": [
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "flow", "length": 2, "direction": -1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 1, "floors": ["blue_ice"] }
+      ]
+    },
+    {
+      "name": "D1-I_F2-I_D1-B_S1-B_F2-I_D1-B_S1-B",
+      "proven": true,
+      "note": "Game-validated faststart bridge backbone from game storage run 2.",
+      "segments": [
+        { "kind": "dry", "length": 1, "floors": ["packed_ice"] },
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 1, "floors": ["blue_ice"] },
+        { "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 },
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 1, "floors": ["blue_ice"] },
+        { "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 }
+      ]
+    },
+    {
+      "name": "F2-I_D1-B_S1-B_D1-I_F2-I_D1-B_S1-B",
+      "proven": true,
+      "note": "Cyclic rotation of the game-validated faststart bridge backbone.",
+      "segments": [
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 1, "floors": ["blue_ice"] },
+        { "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 },
+        { "kind": "dry", "length": 1, "floors": ["packed_ice"] },
+        { "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] },
+        { "kind": "dry", "length": 1, "floors": ["blue_ice"] },
+        { "kind": "still", "length": 1, "floors": ["blue_ice"], "amount": 8 }
+      ]
+    },
+    { "name": "W2-I_D2-I", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice"] }] },
+    { "name": "W2-I_S2-B", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice"], "amount": 8 }] },
+    { "name": "W2-I_D2-IB", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice", "blue_ice"] }] },
+    { "name": "W2-I_S2-IB", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice", "blue_ice"], "amount": 8 }] },
+    { "name": "W2-I_D2-BI", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice", "packed_ice"] }] },
+    { "name": "W2-I_S2-BI", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice", "packed_ice"], "amount": 8 }] },
+    { "name": "W2-B_D2-I", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice"] }] },
+    { "name": "W2-B_S2-I", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice"], "amount": 8 }] },
+    { "name": "W2-B_D2-B", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice"] }] },
+    { "name": "W2-B_D2-IB", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice", "blue_ice"] }] },
+    { "name": "W2-B_S2-IB", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice", "blue_ice"], "amount": 8 }] },
+    { "name": "W2-B_D2-BI", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice", "packed_ice"] }] },
+    { "name": "W2-B_S2-BI", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice", "packed_ice"], "amount": 8 }] },
+    { "name": "W2-IB_D2-I", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice"] }] },
+    { "name": "W2-IB_S2-I", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice"], "amount": 8 }] },
+    { "name": "W2-IB_D2-B", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice"] }] },
+    { "name": "W2-IB_S2-B", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice"], "amount": 8 }] },
+    { "name": "W2-IB_D2-IB", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice", "blue_ice"] }] },
+    { "name": "W2-IB_S2-IB", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice", "blue_ice"], "amount": 8 }] },
+    { "name": "W2-IB_D2-BI", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice", "packed_ice"] }] },
+    { "name": "W2-IB_S2-BI", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["packed_ice", "blue_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice", "packed_ice"], "amount": 8 }] },
+    { "name": "W2-BI_D2-I", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice"] }] },
+    { "name": "W2-BI_S2-I", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice"], "amount": 8 }] },
+    { "name": "W2-BI_D2-B", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice"] }] },
+    { "name": "W2-BI_S2-B", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice"], "amount": 8 }] },
+    { "name": "W2-BI_D2-IB", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["packed_ice", "blue_ice"] }] },
+    { "name": "W2-BI_S2-IB", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "still", "length": 2, "floors": ["packed_ice", "blue_ice"], "amount": 8 }] },
+    { "name": "W2-BI_D2-BI", "note": "Generated compact dry-gap variant; needs game verification.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "dry", "length": 2, "floors": ["blue_ice", "packed_ice"] }] },
+    { "name": "W2-BI_S2-BI", "note": "Generated compact source/still-water variant; build with intentional source-water cells only.", "segments": [{ "kind": "flow", "length": 2, "direction": 1, "floors": ["blue_ice", "packed_ice"] }, { "kind": "still", "length": 2, "floors": ["blue_ice", "packed_ice"], "amount": 8 }] }
+  ]
+}

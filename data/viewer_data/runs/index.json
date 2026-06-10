@@ -1,0 +1,15 @@
+{
+  "updated_at": "2026-06-10T00:00:00Z",
+  "latest_run_id": 910002,
+  "run_count": 1,
+  "runs": [
+    {
+      "run_id": 910002,
+      "file": "run-910002.json",
+      "label": "Game Storage 0002",
+      "display_label": "游戏实测2",
+      "source": "game-storage",
+      "deleted": false
+    }
+  ]
+}
