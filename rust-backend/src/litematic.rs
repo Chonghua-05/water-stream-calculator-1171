@@ -20,6 +20,9 @@ const NBT_TAG_LIST: u8 = 9;
 const NBT_TAG_COMPOUND: u8 = 10;
 const NBT_TAG_INT_ARRAY: u8 = 11;
 const NBT_TAG_LONG_ARRAY: u8 = 12;
+const MIN_IMPORTED_CYCLE_PERIOD_CELLS: usize = 2;
+const MIN_IMPORTED_CYCLE_REPEATS: usize = 2;
+const MIN_IMPORTED_CYCLE_SPAN_CELLS: usize = 6;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -489,17 +492,11 @@ pub fn import_litematic(
     let fluid_y = options.fluid_y.unwrap_or(fluid_default).min(ay - 1);
     let lane_z = options.z.min(az - 1);
 
-    let mut cells = Vec::with_capacity(ax);
+    let mut drafts = Vec::with_capacity(ax);
     let mut unknown_blocks = BTreeMap::new();
     for x in 0..ax {
         let floor_block = block_at(&parsed, x, floor_y, lane_z);
         let fluid_block = block_at(&parsed, x, fluid_y, lane_z);
-        let prev_fluid = x.checked_sub(1).map(|nx| block_at(&parsed, nx, fluid_y, lane_z));
-        let next_fluid = if x + 1 < ax {
-            Some(block_at(&parsed, x + 1, fluid_y, lane_z))
-        } else {
-            None
-        };
 
         for block in [&floor_block, &fluid_block] {
             if !is_known_block(block.name.as_str()) {
@@ -507,18 +504,15 @@ pub fn import_litematic(
             }
         }
 
-        cells.push(cell_from_blocks(
-            &floor_block,
-            &fluid_block,
-            next_fluid.as_ref(),
-            prev_fluid.as_ref(),
-        ));
+        drafts.push(imported_cell_draft_from_blocks(&floor_block, &fluid_block));
     }
+
+    let (prefix, cycle) = split_imported_drafts(&drafts);
 
     let mut structure = default_structure();
     structure.name = Some(format!("litematic:{}", parsed.region_name));
-    structure.prefix = cells;
-    structure.cycle = Vec::new();
+    structure.prefix = prefix;
+    structure.cycle = cycle;
 
     Ok(LitematicImportResult {
         ok: true,
@@ -658,6 +652,94 @@ fn maybe_gunzip(data: &[u8]) -> Result<Vec<u8>, String> {
 
 fn normalize_cells(cells: &[Cell]) -> Vec<Cell> {
     cells.iter().cloned().map(Cell::normalized).collect()
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ImportedCycleSignature {
+    wet: bool,
+    amount: u8,
+    floor: String,
+}
+
+#[derive(Clone, Debug)]
+struct ImportedCellDraft {
+    floor: FloorName,
+    amount: Option<u8>,
+    force_still: bool,
+    is_air: bool,
+}
+
+#[cfg(test)]
+fn split_imported_prefix_cycle(cells: Vec<Cell>) -> (Vec<Cell>, Vec<Cell>) {
+    let signatures = cells
+        .iter()
+        .map(imported_cycle_signature)
+        .collect::<Vec<_>>();
+    let Some((prefix_len, period)) = detect_imported_cycle_suffix(&signatures) else {
+        return (cells, Vec::new());
+    };
+    let prefix = cells[..prefix_len].to_vec();
+    let cycle = cells[prefix_len..prefix_len + period].to_vec();
+    (prefix, cycle)
+}
+
+fn split_imported_drafts(drafts: &[ImportedCellDraft]) -> (Vec<Cell>, Vec<Cell>) {
+    let linear_cells = cells_from_imported_drafts(drafts);
+    let signatures = linear_cells
+        .iter()
+        .map(imported_cycle_signature)
+        .collect::<Vec<_>>();
+    let Some((prefix_len, period)) = detect_imported_cycle_suffix(&signatures) else {
+        return (linear_cells, Vec::new());
+    };
+    cells_from_imported_draft_segments(drafts, prefix_len, period)
+}
+
+fn detect_imported_cycle_suffix(signatures: &[ImportedCycleSignature]) -> Option<(usize, usize)> {
+    let len = signatures.len();
+    if len < MIN_IMPORTED_CYCLE_SPAN_CELLS {
+        return None;
+    }
+
+    let mut best: Option<(usize, usize, usize)> = None;
+    for period in MIN_IMPORTED_CYCLE_PERIOD_CELLS..=len / MIN_IMPORTED_CYCLE_REPEATS {
+        let mut repeat_count = 1_usize;
+        while (repeat_count + 1) * period <= len {
+            let current_start = len - repeat_count * period;
+            let previous_start = current_start - period;
+            if signatures[previous_start..current_start]
+                != signatures[len - period..len]
+            {
+                break;
+            }
+            repeat_count += 1;
+        }
+
+        if repeat_count < MIN_IMPORTED_CYCLE_REPEATS {
+            continue;
+        }
+        let span = repeat_count * period;
+        if span < MIN_IMPORTED_CYCLE_SPAN_CELLS {
+            continue;
+        }
+        let prefix_len = len - span;
+        match best {
+            Some((_, best_period, best_span))
+                if span < best_span || (span == best_span && period >= best_period) => {}
+            _ => best = Some((prefix_len, period, span)),
+        }
+    }
+
+    best.map(|(prefix_len, period, _span)| (prefix_len, period))
+}
+
+fn imported_cycle_signature(cell: &Cell) -> ImportedCycleSignature {
+    let normalized = cell.clone().normalized();
+    ImportedCycleSignature {
+        wet: normalized.canonical_surface().is_some(),
+        amount: normalized.canonical_amount(),
+        floor: normalized.floor.as_str().trim().to_ascii_lowercase(),
+    }
 }
 
 fn litematic_state_for_cell(cell: &Cell, is_floor_layer: bool) -> BlockState {
@@ -972,12 +1054,10 @@ fn floor_from_block(name: &str) -> FloorName {
     }
 }
 
-fn cell_from_blocks(
+fn imported_cell_draft_from_blocks(
     floor_block: &BlockState,
     fluid_block: &BlockState,
-    next_fluid: Option<&BlockState>,
-    prev_fluid: Option<&BlockState>,
-) -> Cell {
+) -> ImportedCellDraft {
     let floor = floor_from_block(&floor_block.name);
     let name = short_block_name(&fluid_block.name);
     let waterlogged = fluid_block
@@ -986,10 +1066,20 @@ fn cell_from_blocks(
         .is_some_and(|value| value.eq_ignore_ascii_case("true"));
     let is_water = name == "water" || waterlogged;
     if !is_water {
-        return make_cell(None, 0, floor, None, Some(0));
+        return ImportedCellDraft {
+            floor,
+            amount: None,
+            force_still: false,
+            is_air: name == "air",
+        };
     }
     if waterlogged && name != "water" {
-        return make_cell(Some(8.0 / 9.0), 0, floor, None, Some(8));
+        return ImportedCellDraft {
+            floor,
+            amount: Some(8),
+            force_still: true,
+            is_air: false,
+        };
     }
 
     let level_num = fluid_block
@@ -1002,50 +1092,272 @@ fn cell_from_blocks(
     } else {
         (8_i32.saturating_sub(level_num)).clamp(1, 8) as u8
     };
-    let prev_amount = water_amount(prev_fluid);
-    let next_amount = water_amount(next_fluid);
-    let mut flow = 0_i8;
-    if prev_amount.is_some() || next_amount.is_some() {
-        let left = prev_amount.unwrap_or(amount);
-        let right = next_amount.unwrap_or(amount);
-        if amount > right {
-            flow = 1;
-        } else if amount > left {
-            flow = -1;
-        }
+    ImportedCellDraft {
+        floor,
+        amount: Some(amount),
+        force_still: false,
+        is_air: false,
     }
-    make_cell(Some(amount as f64 / 9.0), flow, floor, None, Some(amount))
 }
 
-fn water_amount(block: Option<&BlockState>) -> Option<u8> {
-    let block = block?;
-    let name = short_block_name(&block.name);
-    if block
-        .properties
-        .get("waterlogged")
-        .is_some_and(|value| value.eq_ignore_ascii_case("true"))
-    {
-        return Some(8);
+fn cells_from_imported_drafts(drafts: &[ImportedCellDraft]) -> Vec<Cell> {
+    let len = drafts.len();
+    let indices = (0..len).collect::<Vec<_>>();
+    let prev = (0..len)
+        .map(|index| index.checked_sub(1))
+        .collect::<Vec<_>>();
+    let next = (0..len)
+        .map(|index| (index + 1 < len).then_some(index + 1))
+        .collect::<Vec<_>>();
+    cells_from_imported_topology(drafts, &indices, &prev, &next)
+}
+
+fn cells_from_imported_draft_segments(
+    drafts: &[ImportedCellDraft],
+    prefix_len: usize,
+    cycle_len: usize,
+) -> (Vec<Cell>, Vec<Cell>) {
+    let total_len = prefix_len + cycle_len;
+    let indices = (0..total_len).collect::<Vec<_>>();
+    let mut prev = Vec::with_capacity(total_len);
+    let mut next = Vec::with_capacity(total_len);
+    for index in 0..total_len {
+        if index < prefix_len {
+            prev.push(index.checked_sub(1));
+            next.push(if index + 1 < prefix_len {
+                Some(index + 1)
+            } else if cycle_len > 0 {
+                Some(prefix_len)
+            } else {
+                None
+            });
+        } else {
+            let offset = index - prefix_len;
+            prev.push(Some(prefix_len + (offset + cycle_len - 1) % cycle_len));
+            next.push(Some(prefix_len + (offset + 1) % cycle_len));
+        }
     }
-    if name != "water" {
-        return None;
+
+    let cells = cells_from_imported_topology(drafts, &indices, &prev, &next);
+    (
+        cells[..prefix_len].to_vec(),
+        cells[prefix_len..prefix_len + cycle_len].to_vec(),
+    )
+}
+
+fn cells_from_imported_topology(
+    drafts: &[ImportedCellDraft],
+    indices: &[usize],
+    prev: &[Option<usize>],
+    next: &[Option<usize>],
+) -> Vec<Cell> {
+    let mut flows = indices
+        .iter()
+        .enumerate()
+        .map(|(position, draft_index)| {
+            let draft = &drafts[*draft_index];
+            let Some(amount) = draft.amount else {
+                return 0;
+            };
+            if draft.force_still {
+                return 0;
+            }
+            imported_water_flow_direction(
+                amount,
+                prev[position].and_then(|prev_position| drafts[indices[prev_position]].amount),
+                next[position].and_then(|next_position| drafts[indices[next_position]].amount),
+                prev[position].is_some(),
+                next[position].is_some(),
+                prev[position].is_some_and(|prev_position| {
+                    imported_side_is_open(&drafts[indices[prev_position]])
+                }),
+                next[position].is_some_and(|next_position| {
+                    imported_side_is_open(&drafts[indices[next_position]])
+                }),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    for _ in 0..indices.len() {
+        let mut changed = false;
+        for position in 0..indices.len() {
+            let draft = &drafts[indices[position]];
+            if draft.amount != Some(8) || draft.force_still || flows[position] != 0 {
+                continue;
+            }
+
+            let prev_flowing = prev[position].is_some_and(|prev_position| {
+                drafts[indices[prev_position]].amount.is_some() && flows[prev_position] != 0
+            });
+            let next_flowing = next[position].is_some_and(|next_position| {
+                drafts[indices[next_position]].amount.is_some() && flows[next_position] != 0
+            });
+            let prev_passive = imported_side_is_passive(
+                prev[position].map(|prev_position| &drafts[indices[prev_position]]),
+                prev[position].map(|prev_position| flows[prev_position]),
+            );
+            let next_passive = imported_side_is_passive(
+                next[position].map(|next_position| &drafts[indices[next_position]]),
+                next[position].map(|next_position| flows[next_position]),
+            );
+
+            let propagated = match (prev_flowing, next_flowing, prev_passive, next_passive) {
+                (true, false, _, true) => -1,
+                (false, true, true, _) => 1,
+                _ => 0,
+            };
+            if propagated != 0 {
+                flows[position] = propagated;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
     }
-    let level = block
-        .properties
-        .get("level")
-        .and_then(|value| value.parse::<i32>().ok())
-        .unwrap_or(0);
-    Some(if level == 0 {
-        8
+
+    indices
+        .iter()
+        .enumerate()
+        .map(|(position, draft_index)| {
+            let draft = &drafts[*draft_index];
+            let Some(amount) = draft.amount else {
+                return make_cell(None, 0, draft.floor.clone(), None, Some(0));
+            };
+            make_cell(
+                Some(amount as f64 / 9.0),
+                flows[position],
+                draft.floor.clone(),
+                None,
+                Some(amount),
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn cell_from_imported_draft(
+    draft: &ImportedCellDraft,
+    prev: Option<&ImportedCellDraft>,
+    next: Option<&ImportedCellDraft>,
+) -> Cell {
+    let Some(amount) = draft.amount else {
+        return make_cell(None, 0, draft.floor.clone(), None, Some(0));
+    };
+    let flow = if draft.force_still {
+        0
     } else {
-        (8_i32.saturating_sub(level)).clamp(1, 8) as u8
-    })
+        imported_water_flow_direction(
+            amount,
+            prev.and_then(|draft| draft.amount),
+            next.and_then(|draft| draft.amount),
+            prev.is_some(),
+            next.is_some(),
+            prev.is_some_and(imported_side_is_open),
+            next.is_some_and(imported_side_is_open),
+        )
+    };
+    make_cell(
+        Some(amount as f64 / 9.0),
+        flow,
+        draft.floor.clone(),
+        None,
+        Some(amount),
+    )
+}
+
+#[cfg(test)]
+fn cell_from_blocks(
+    floor_block: &BlockState,
+    fluid_block: &BlockState,
+    next_fluid: Option<&BlockState>,
+    prev_fluid: Option<&BlockState>,
+) -> Cell {
+    let current = imported_cell_draft_from_blocks(floor_block, fluid_block);
+    let prev = prev_fluid.map(|block| imported_cell_draft_from_blocks(floor_block, block));
+    let next = next_fluid.map(|block| imported_cell_draft_from_blocks(floor_block, block));
+    cell_from_imported_draft(&current, prev.as_ref(), next.as_ref())
+}
+
+fn imported_water_flow_direction(
+    amount: u8,
+    prev_amount: Option<u8>,
+    next_amount: Option<u8>,
+    prev_exists: bool,
+    next_exists: bool,
+    prev_open: bool,
+    next_open: bool,
+) -> i8 {
+    let gradient_flow = flowing_water_direction(amount, prev_amount, next_amount);
+    if amount == 8 && gradient_flow == 0 && prev_amount.is_none() && next_amount.is_none() {
+        match (
+            prev_exists && prev_open,
+            next_exists && next_open,
+            prev_exists,
+            next_exists,
+        ) {
+            (true, false, _, true) => -1,
+            (false, true, true, _) => 1,
+            _ => 0,
+        }
+    } else {
+        gradient_flow
+    }
+}
+
+fn flowing_water_direction(amount: u8, prev_amount: Option<u8>, next_amount: Option<u8>) -> i8 {
+    let mut x_component = 0_i16;
+    if let Some(left) = prev_amount {
+        x_component += i16::from(left) - i16::from(amount);
+    }
+    if let Some(right) = next_amount {
+        x_component += i16::from(amount) - i16::from(right);
+    }
+    match x_component.cmp(&0) {
+        std::cmp::Ordering::Greater => 1,
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+    }
+}
+
+fn imported_side_is_open(draft: &ImportedCellDraft) -> bool {
+    draft.amount.is_some() || draft.is_air
+}
+
+fn imported_side_is_passive(draft: Option<&ImportedCellDraft>, flow: Option<i8>) -> bool {
+    let Some(draft) = draft else {
+        return true;
+    };
+    match draft.amount {
+        None => true,
+        Some(8) => flow.unwrap_or(0) == 0,
+        Some(_) => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn test_block(name: &str, properties: &[(&str, &str)]) -> BlockState {
+        BlockState {
+            name: name.to_string(),
+            properties: properties
+                .iter()
+                .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                .collect(),
+        }
+    }
+
+    fn test_draft(amount: Option<u8>, flow_floor: &str) -> ImportedCellDraft {
+        ImportedCellDraft {
+            floor: FloorName::from(flow_floor),
+            amount,
+            force_still: false,
+            is_air: amount.is_none(),
+        }
+    }
 
     #[test]
     fn import_options_accept_numeric_strings() {
@@ -1084,8 +1396,207 @@ mod tests {
 
         assert!(imported.ok);
         assert_eq!(imported.region.size, [12, 2, 1]);
-        assert_eq!(imported.structure.prefix.len(), 12);
-        assert!(imported.structure.cycle.is_empty());
+        assert!(imported.structure.prefix.is_empty());
+        assert_eq!(imported.structure.cycle.len(), 6);
+        assert_eq!(imported.structure.cycle[0].derived_code(), "F8-I");
+        assert_eq!(imported.structure.cycle[1].derived_code(), "F7-I");
+        assert_eq!(imported.structure.cycle[2].derived_code(), "F6-I");
         assert!(imported.unknown_blocks.is_empty());
+    }
+
+    #[test]
+    fn repeated_import_tail_is_split_into_cycle() {
+        let mut cells = vec![
+            make_cell(None, 0, "glass", None, Some(0)),
+            make_cell(Some(8.0 / 9.0), 0, "packed_ice", None, Some(8)),
+        ];
+        let cycle = crate::schema::default_cycle_cells();
+        for _ in 0..3 {
+            cells.extend(cycle.iter().cloned());
+        }
+
+        let (prefix, detected_cycle) = split_imported_prefix_cycle(cells);
+        assert_eq!(prefix.len(), 2);
+        assert_eq!(detected_cycle.len(), cycle.len());
+        assert_eq!(detected_cycle[0].derived_code(), "F8-I");
+        assert_eq!(detected_cycle[5].derived_code(), "D-B");
+    }
+
+    #[test]
+    fn repeated_import_tail_detection_ignores_boundary_flow() {
+        let mut cells = (0..14)
+            .map(|_| make_cell(None, 0, "blue_ice", None, Some(0)))
+            .collect::<Vec<_>>();
+        let period = vec![
+            make_cell(Some(8.0 / 9.0), 1, "packed_ice", None, Some(8)),
+            make_cell(Some(7.0 / 9.0), 1, "packed_ice", None, Some(7)),
+            make_cell(Some(6.0 / 9.0), 1, "packed_ice", None, Some(6)),
+            make_cell(None, 0, "blue_ice", None, Some(0)),
+            make_cell(None, 0, "blue_ice", None, Some(0)),
+            make_cell(None, 0, "blue_ice", None, Some(0)),
+            make_cell(Some(8.0 / 9.0), 0, "packed_ice", None, Some(8)),
+            make_cell(None, 0, "blue_ice", None, Some(0)),
+            make_cell(Some(8.0 / 9.0), 1, "packed_ice", None, Some(8)),
+        ];
+        cells.extend(period.iter().cloned());
+        cells.extend(period.iter().cloned());
+        let mut edge_period = period.clone();
+        edge_period[8] = make_cell(Some(8.0 / 9.0), 0, "packed_ice", None, Some(8));
+        cells.extend(edge_period);
+
+        let (prefix, detected_cycle) = split_imported_prefix_cycle(cells);
+        assert_eq!(prefix.len(), 14);
+        assert_eq!(detected_cycle.len(), 9);
+        assert_eq!(detected_cycle[0].derived_code(), "F8-I");
+        assert_eq!(detected_cycle[8].derived_code(), "F8-I");
+    }
+
+    #[test]
+    fn detected_cycle_recomputes_flow_with_periodic_neighbors() {
+        let mut drafts = vec![test_draft(None, "blue_ice")];
+        let period = vec![
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(7), "packed_ice"),
+        ];
+        for _ in 0..3 {
+            drafts.extend(period.iter().cloned());
+        }
+
+        let (prefix, cycle) = split_imported_drafts(&drafts);
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(cycle.len(), 3);
+        assert_eq!(cycle[0].derived_code(), "R8-I");
+        assert_eq!(cycle[1].derived_code(), "F8-I");
+        assert_eq!(cycle[2].derived_code(), "S7-I");
+    }
+
+    #[test]
+    fn source_next_to_directional_level_zero_water_is_imported_as_flowing() {
+        let drafts = vec![
+            test_draft(None, "blue_ice"),
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(7), "packed_ice"),
+        ];
+
+        let cells = cells_from_imported_drafts(&drafts);
+        assert_eq!(cells[0].derived_code(), "D-B");
+        assert_eq!(cells[1].derived_code(), "F8-I");
+        assert_eq!(cells[2].derived_code(), "F8-I");
+        assert_eq!(cells[3].derived_code(), "F7-I");
+    }
+
+    #[test]
+    fn detected_cycle_keeps_cycle_four_flowing_and_cycle_eight_source() {
+        let mut drafts = (0..14)
+            .map(|_| test_draft(None, "blue_ice"))
+            .collect::<Vec<_>>();
+        let period = vec![
+            test_draft(None, "blue_ice"),
+            test_draft(None, "blue_ice"),
+            test_draft(None, "blue_ice"),
+            test_draft(None, "blue_ice"),
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(8), "packed_ice"),
+            test_draft(Some(7), "packed_ice"),
+            test_draft(None, "blue_ice"),
+            test_draft(Some(8), "packed_ice"),
+        ];
+        for _ in 0..4 {
+            drafts.extend(period.iter().cloned());
+        }
+
+        let (prefix, cycle) = split_imported_drafts(&drafts);
+        assert_eq!(prefix.len(), 14);
+        assert_eq!(cycle.len(), 9);
+        assert_eq!(cycle[4].derived_code(), "F8-I");
+        assert_eq!(cycle[5].derived_code(), "F8-I");
+        assert_eq!(cycle[6].derived_code(), "F7-I");
+        assert_eq!(cycle[8].derived_code(), "S8-I");
+    }
+
+    #[test]
+    fn source_water_flow_uses_side_blockers_when_importing() {
+        let floor = test_block("minecraft:packed_ice", &[]);
+        let source = test_block("minecraft:water", &[("level", "0")]);
+        let flowing_left = test_block("minecraft:water", &[("level", "3")]);
+        let flowing_right = test_block("minecraft:water", &[("level", "1")]);
+        let plate = test_block("minecraft:stone_pressure_plate", &[]);
+        let air = test_block("minecraft:air", &[]);
+
+        let reverse = cell_from_blocks(&floor, &source, Some(&plate), Some(&flowing_left));
+        assert_eq!(reverse.canonical_amount(), 8);
+        assert_eq!(reverse.canonical_flow(), -1);
+        assert_eq!(reverse.derived_code(), "R8-I");
+
+        let forward = cell_from_blocks(&floor, &source, Some(&flowing_right), Some(&plate));
+        assert_eq!(forward.canonical_amount(), 8);
+        assert_eq!(forward.canonical_flow(), 1);
+        assert_eq!(forward.derived_code(), "F8-I");
+
+        let both_open = cell_from_blocks(&floor, &source, Some(&air), Some(&air));
+        assert_eq!(both_open.canonical_amount(), 8);
+        assert_eq!(both_open.canonical_flow(), 0);
+        assert_eq!(both_open.derived_code(), "S8-I");
+
+        let open_forward = cell_from_blocks(&floor, &source, Some(&air), Some(&plate));
+        assert_eq!(open_forward.canonical_amount(), 8);
+        assert_eq!(open_forward.canonical_flow(), 1);
+        assert_eq!(open_forward.derived_code(), "F8-I");
+
+        let edge_open = cell_from_blocks(&floor, &source, None, Some(&air));
+        assert_eq!(edge_open.canonical_amount(), 8);
+        assert_eq!(edge_open.canonical_flow(), 0);
+        assert_eq!(edge_open.derived_code(), "S8-I");
+    }
+
+    #[test]
+    fn level_zero_water_uses_height_gradient_before_source_fallback() {
+        let floor = test_block("minecraft:packed_ice", &[]);
+        let level_zero = test_block("minecraft:water", &[("level", "0")]);
+        let amount_seven = test_block("minecraft:water", &[("level", "1")]);
+        let amount_six = test_block("minecraft:water", &[("level", "2")]);
+        let plate = test_block("minecraft:stone_pressure_plate", &[]);
+        let air = test_block("minecraft:air", &[]);
+
+        let first = cell_from_blocks(&floor, &level_zero, Some(&level_zero), Some(&plate));
+        assert_eq!(first.canonical_amount(), 8);
+        assert_eq!(first.canonical_flow(), 0);
+        assert_eq!(first.derived_code(), "S8-I");
+
+        let air_to_lower_water = cell_from_blocks(&floor, &level_zero, Some(&amount_seven), Some(&air));
+        assert_eq!(air_to_lower_water.canonical_amount(), 8);
+        assert_eq!(air_to_lower_water.canonical_flow(), 1);
+        assert_eq!(air_to_lower_water.derived_code(), "F8-I");
+
+        let second = cell_from_blocks(&floor, &level_zero, Some(&amount_seven), Some(&level_zero));
+        assert_eq!(second.canonical_amount(), 8);
+        assert_eq!(second.canonical_flow(), 1);
+        assert_eq!(second.derived_code(), "F8-I");
+
+        let third = cell_from_blocks(&floor, &amount_seven, Some(&amount_six), Some(&level_zero));
+        assert_eq!(third.canonical_amount(), 7);
+        assert_eq!(third.canonical_flow(), 1);
+        assert_eq!(third.derived_code(), "F7-I");
+    }
+
+    #[test]
+    fn flowing_water_with_single_water_neighbor_keeps_direction() {
+        let floor = test_block("minecraft:packed_ice", &[]);
+        let flowing = test_block("minecraft:water", &[("level", "3")]);
+        let higher_left = test_block("minecraft:water", &[("level", "2")]);
+        let higher_right = test_block("minecraft:water", &[("level", "2")]);
+        let plate = test_block("minecraft:stone_pressure_plate", &[]);
+
+        let forward = cell_from_blocks(&floor, &flowing, Some(&plate), Some(&higher_left));
+        assert_eq!(forward.canonical_amount(), 5);
+        assert_eq!(forward.canonical_flow(), 1);
+        assert_eq!(forward.derived_code(), "F5-I");
+
+        let reverse = cell_from_blocks(&floor, &flowing, Some(&higher_right), Some(&plate));
+        assert_eq!(reverse.canonical_amount(), 5);
+        assert_eq!(reverse.canonical_flow(), -1);
+        assert_eq!(reverse.derived_code(), "R5-I");
     }
 }

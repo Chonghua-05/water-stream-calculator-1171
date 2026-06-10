@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build, for example v1.0.1"
+        description: "Release tag to build, for example v1.0.2"
         required: true
         type: string
 
@@ -316,6 +316,18 @@ jobs:
             - 大小：`__LINUX_SIZE__` bytes
 
           ---
+
+          ### v1.0.2 修复
+
+          - 修复 Litematica/原理图导入时 `amount=8` 水格被错误标为静止水源的问题：导入现在会先识别 prefix/cycle，再按结构拓扑重新计算 `S8/F8/R8`。
+          - 修复循环段识别后没有按周期邻接重新计算水流方向的问题：cycle 内部会按环形邻接判断，避免循环 4 这类水格被误判。
+          - 修复导入到结构编辑器时丢失 cycle 边界的问题：前端会保留后端返回的 prefix/cycle 分段。
+
+          ### v1.0.2 Fixes
+
+          - Fixed Litematica/schematic import cases where `amount=8` water cells were incorrectly treated as still sources. Imported structures now detect prefix/cycle first, then recompute `S8/F8/R8` from the resulting topology.
+          - Fixed cycle flow direction after automatic cycle detection. Cycle cells are evaluated with periodic neighbors, preventing cells such as cycle index 4 from being misclassified.
+          - Fixed structure-editor import so detected cycle boundaries are preserved instead of flattening everything into the prefix.
 
           Windows and Linux release of Water Stream Calculator for Minecraft Java Edition 1.17.1.
 

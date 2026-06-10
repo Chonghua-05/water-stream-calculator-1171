@@ -416,15 +416,17 @@ function editorCellToModelCell(cell) {
 
 function waterKindFromModelCell(cell) {
   if (!cell || cell.surface == null || Number(cell.amount) === 0) return "dry";
+  const amount = Number(cell.amount) || Math.round(Number(cell.surface) * 9) || 8;
   const code = String(cell.code || "").trim().toUpperCase();
   const codePrefix = code.match(/^[A-Z]+/)?.[0]?.charAt(0) ?? "";
   if (codePrefix === "F") return "forward";
   if (codePrefix === "R") return "reverse";
-  if (codePrefix === "S") return "source";
   const flow = Number(cell.flow) || 0;
   if (flow > 0) return "forward";
   if (flow < 0) return "reverse";
-  return "source";
+  if (amount >= 8 && codePrefix === "S") return "source";
+  if (amount >= 8) return "source";
+  return "forward";
 }
 
 function modelCellToEditorCell(cell) {
@@ -1024,8 +1026,10 @@ async function importLitematic() {
     if (!response.ok || payload.ok === false) {
       throw new Error(payload.detail || payload.error || "导入失败");
     }
-    editorState.cells = payload.structure.prefix.map(modelCellToEditorCell);
-    editorState.prefixLength = editorState.cells.length;
+    const importedPrefix = Array.isArray(payload.structure?.prefix) ? payload.structure.prefix : [];
+    const importedCycle = Array.isArray(payload.structure?.cycle) ? payload.structure.cycle : [];
+    editorState.cells = [...importedPrefix, ...importedCycle].map(modelCellToEditorCell);
+    editorState.prefixLength = clamp(importedPrefix.length, 0, editorState.cells.length);
     markEditorAsManual();
     clearPreservedEditorContext();
     resetVisibleStructureStartInputs();
@@ -1035,6 +1039,8 @@ async function importLitematic() {
     importReport.textContent = JSON.stringify({
       region: payload.region,
       cells: editorState.cells.length,
+      prefix: importedPrefix.length,
+      cycle: importedCycle.length,
       unknownBlocks: payload.unknownBlocks,
     }, null, 2);
     setSettingsStatus("已导入到结构编辑器");
