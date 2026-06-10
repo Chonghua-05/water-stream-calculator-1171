@@ -2,7 +2,7 @@
 
 ## Goal
 
-This repository is the standalone Rust version of the water-stream calculator package.
+This document summarizes the runtime architecture of the calculator.
 
 Its runtime responsibilities are:
 
@@ -11,8 +11,6 @@ Its runtime responsibilities are:
 - store viewer runs
 - run reachable-candidate search
 - expose the same local HTTP API used by the existing viewer
-
-There is no Node backend and no Python backend in this package.
 
 ## Top-Level Layout
 
@@ -77,7 +75,7 @@ The Rust service owns these viewer-facing routes:
 - `POST /api/litematic/import`
 - `POST /api/litematic/export`
 
-`/api/model/compare` remains present, but in this Rust-only package it reports that the historical legacy compare backend is unavailable.
+`/api/model/compare` is currently reserved and returns unavailable.
 
 ## Search Flow
 
@@ -105,7 +103,7 @@ Current limitation:
 - the active Rust search catalog is still compiled into `rust-backend/src/lib.rs`
 - the packaged JSON is not yet the single runtime source of truth for the Rust searcher
 
-That boundary is intentional in this repository so the public package stays compatible with the current working search behavior.
+At the moment, the JSON serves as the external format reference, while the active search catalog remains compiled into the Rust backend.
 
 ## Start Script Contract
 
@@ -118,4 +116,3 @@ That boundary is intentional in this repository so the public package stays comp
 - `WATERWAY_PARTS_CONFIG = <repo>/model/config/waterway-structure-parts.json`
 
 The script prefers the bundled Windows solver binary in `bin/windows/`, and rebuilds from `rust-backend/` when the source tree is newer and `cargo` is available.
-

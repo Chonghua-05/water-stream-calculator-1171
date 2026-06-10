@@ -2,7 +2,7 @@
 
 Standalone Rust-based toolkit for Minecraft 1.17.1 item water-stream simulation, reachable-candidate search, and local run inspection.
 
-This repository is the stripped public package for the water-stream calculator only. It does not include Minecraft source, Fabric bridge code, or historical local runtime clutter.
+[简体中文说明](README.zh-CN.md)
 
 ## Included
 
@@ -52,7 +52,6 @@ The viewer starts with one sample run already available:
 
 ## Notes
 
-- The runtime stack in this repo is Rust + static web assets only. There is no Node or Python backend.
 - A bundled Windows solver binary is included under `bin/windows/`. If the Rust source is newer and `cargo` is available, `start-windows.ps1` will rebuild and use the fresh binary.
 - The published structure-parts JSON is included as the external config reference. The current Rust search catalog is still compiled into the backend and is documented in the architecture note.
 
@@ -62,4 +61,3 @@ The viewer starts with one sample run already available:
 - [`docs/item-waterway-model-1.17.1.md`](docs/item-waterway-model-1.17.1.md)
 - [`docs/rust-architecture.md`](docs/rust-architecture.md)
 - [`model/config/waterway-structure-parts.json`](model/config/waterway-structure-parts.json)
-
