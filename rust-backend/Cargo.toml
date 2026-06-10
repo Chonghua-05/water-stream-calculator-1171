@@ -1,6 +1,6 @@
 [package]
 name = "item-waterway-solver"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "Rust backend for Minecraft 1.17.1 item water-stream simulation, search, and viewer service"
 readme = "../README.md"
