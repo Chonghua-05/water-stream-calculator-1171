@@ -1,0 +1,171 @@
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve release ref
+        id: release_ref
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.tag }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+          }
+          if (-not $tag) {
+            throw "Release tag is empty."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_ref.outputs.tag }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test Rust backend
+        working-directory: rust-backend
+        run: cargo test --release --locked
+
+      - name: Build Rust backend
+        working-directory: rust-backend
+        run: cargo build --release --locked --bin item-waterway-solver
+
+      - name: Assemble Windows runtime package
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $packageName = "water-stream-calculator-1171-$tag-windows"
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          $packageRoot = Join-Path $dist $packageName
+          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+
+          foreach ($dir in @("assets", "data", "docs", "model", "viewer")) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $dir) -Destination $packageRoot -Recurse -Force
+          }
+          foreach ($file in @("README.md", "README.zh-CN.md", "start-windows.ps1", "stop-windows.ps1")) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination $packageRoot -Force
+          }
+
+          $binDir = Join-Path $packageRoot "bin\windows"
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          Copy-Item `
+            -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "rust-backend\target\release\item-waterway-solver.exe") `
+            -Destination (Join-Path $binDir "item-waterway-solver.exe") `
+            -Force
+
+          $sampleIndex = Join-Path $packageRoot "data\viewer_data\runs\index.json"
+          $sampleRun = Join-Path $packageRoot "data\viewer_data\runs\run-910002.json"
+          if (-not (Test-Path -LiteralPath $sampleIndex)) {
+            throw "Missing bundled viewer run index."
+          }
+          if (-not (Test-Path -LiteralPath $sampleRun)) {
+            throw "Missing bundled Game Storage 0002 data."
+          }
+          $index = Get-Content -Raw -Encoding utf8 -LiteralPath $sampleIndex | ConvertFrom-Json
+          if ($index.run_count -ne 1 -or $index.runs[0].display_label -ne "游戏实测2") {
+            throw "Bundled viewer data must contain exactly one 游戏实测2 run."
+          }
+
+          $zipPath = Join-Path $dist "$packageName.zip"
+          Compress-Archive -LiteralPath $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
+          $size = (Get-Item -LiteralPath $zipPath).Length
+
+          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
+          "zip_name=$(Split-Path -Leaf $zipPath)" >> $env:GITHUB_OUTPUT
+          "zip_sha256=$hash" >> $env:GITHUB_OUTPUT
+          "zip_size=$size" >> $env:GITHUB_OUTPUT
+          "ASSET_SHA256=$hash" >> $env:GITHUB_ENV
+          "ASSET_SIZE=$size" >> $env:GITHUB_ENV
+
+      - name: Smoke test packaged viewer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $root = Join-Path $env:GITHUB_WORKSPACE "dist\water-stream-calculator-1171-$tag-windows"
+          $port = 8767
+          try {
+            & (Join-Path $root "start-windows.ps1") -Port $port -NoBrowser | Write-Output
+            Start-Sleep -Seconds 1
+            $status = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/status" -TimeoutSec 10
+            $runs = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/runs" -TimeoutSec 10
+            if (-not $status.ok -or $status.backend -ne "rust") {
+              throw "Packaged viewer did not report the Rust backend."
+            }
+            if ($runs.runs.Count -ne 1 -or $runs.runs[0].display_label -ne "游戏实测2") {
+              throw "Packaged viewer did not expose bundled 游戏实测2 data."
+            }
+          } finally {
+            & (Join-Path $root "stop-windows.ps1") | Write-Output
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.zip_name }}
+          path: ${{ steps.package.outputs.zip_path }}
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          @"
+          First Windows release for the Minecraft 1.17.1 water stream calculator.
+
+          Included:
+          - Windows runtime zip with `start-windows.ps1` and `stop-windows.ps1`.
+          - Rust backend executable built by GitHub Actions from this tag.
+          - Local viewer assets, model config, block textures, and documentation.
+          - Built-in `游戏实测2` sample data for opening the data Web and testing immediately.
+
+          Verified by this workflow:
+          - `cargo test --release --locked`
+          - Packaged viewer smoke test with Rust backend and bundled `游戏实测2`
+
+          Asset SHA256: $env:ASSET_SHA256
+          Asset size: $env:ASSET_SIZE bytes
+          "@ | Set-Content -LiteralPath $notesPath -Encoding utf8
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $env:ZIP_PATH --clobber
+            gh release edit $tag `
+              --title "$tag Windows" `
+              --notes-file $notesPath `
+              --latest
+          } else {
+            gh release create $tag $env:ZIP_PATH `
+              --title "$tag Windows" `
+              --notes-file $notesPath `
+              --latest
+          }
