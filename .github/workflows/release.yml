@@ -1,0 +1,373 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, for example v1.0.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+    outputs:
+      asset_name: ${{ steps.package.outputs.asset_name }}
+      asset_sha256: ${{ steps.package.outputs.asset_sha256 }}
+      asset_size: ${{ steps.package.outputs.asset_size }}
+
+    steps:
+      - name: Resolve release ref
+        id: release_ref
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.tag }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+          }
+          if (-not $tag) {
+            throw "Release tag is empty."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_ref.outputs.tag }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test Rust backend
+        working-directory: rust-backend
+        run: cargo test --release --locked
+
+      - name: Build Rust backend
+        working-directory: rust-backend
+        run: cargo build --release --locked --bin item-waterway-solver
+
+      - name: Assemble Windows runtime package
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $packageName = "water-stream-calculator-1171-$tag-windows"
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          $packageRoot = Join-Path $dist $packageName
+          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+
+          foreach ($dir in @("assets", "data", "docs", "model", "viewer")) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $dir) -Destination $packageRoot -Recurse -Force
+          }
+          foreach ($file in @("README.md", "README.zh-CN.md", "start-windows.ps1", "stop-windows.ps1")) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination $packageRoot -Force
+          }
+
+          $binDir = Join-Path $packageRoot "bin\windows"
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          Copy-Item `
+            -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "rust-backend\target\release\item-waterway-solver.exe") `
+            -Destination (Join-Path $binDir "item-waterway-solver.exe") `
+            -Force
+
+          $sampleIndex = Join-Path $packageRoot "data\viewer_data\runs\index.json"
+          $sampleRun = Join-Path $packageRoot "data\viewer_data\runs\run-910002.json"
+          if (-not (Test-Path -LiteralPath $sampleIndex)) {
+            throw "Missing bundled viewer run index."
+          }
+          if (-not (Test-Path -LiteralPath $sampleRun)) {
+            throw "Missing bundled Game Storage 0002 data."
+          }
+          $index = Get-Content -Raw -Encoding utf8 -LiteralPath $sampleIndex | ConvertFrom-Json
+          if ($index.run_count -ne 1 -or $index.runs[0].display_label -ne "游戏实测2") {
+            throw "Bundled viewer data must contain exactly one 游戏实测2 run."
+          }
+
+          $zipPath = Join-Path $dist "$packageName.zip"
+          Compress-Archive -LiteralPath $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
+          $size = (Get-Item -LiteralPath $zipPath).Length
+
+          "asset_path=$zipPath" >> $env:GITHUB_OUTPUT
+          "asset_name=$(Split-Path -Leaf $zipPath)" >> $env:GITHUB_OUTPUT
+          "asset_sha256=$hash" >> $env:GITHUB_OUTPUT
+          "asset_size=$size" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke test packaged viewer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $root = Join-Path $env:GITHUB_WORKSPACE "dist\water-stream-calculator-1171-$tag-windows"
+          $port = 8767
+          try {
+            & (Join-Path $root "start-windows.ps1") -Port $port -NoBrowser | Write-Output
+            Start-Sleep -Seconds 1
+            $status = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/status" -TimeoutSec 10
+            $runs = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/runs" -TimeoutSec 10
+            if (-not $status.ok -or $status.backend -ne "rust") {
+              throw "Packaged viewer did not report the Rust backend."
+            }
+            if ($runs.runs.Count -ne 1 -or $runs.runs[0].display_label -ne "游戏实测2") {
+              throw "Packaged viewer did not expose bundled 游戏实测2 data."
+            }
+          } finally {
+            & (Join-Path $root "stop-windows.ps1") | Write-Output
+          }
+
+      - name: Upload Windows workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.asset_name }}
+          path: ${{ steps.package.outputs.asset_path }}
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux release
+    runs-on: ubuntu-latest
+    outputs:
+      asset_name: ${{ steps.package.outputs.asset_name }}
+      asset_sha256: ${{ steps.package.outputs.asset_sha256 }}
+      asset_size: ${{ steps.package.outputs.asset_size }}
+
+    steps:
+      - name: Resolve release ref
+        id: release_ref
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+          if [[ -z "$tag" ]]; then
+            echo "Release tag is empty." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_ref.outputs.tag }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test Rust backend
+        working-directory: rust-backend
+        run: cargo test --release --locked
+
+      - name: Build Rust backend
+        working-directory: rust-backend
+        run: cargo build --release --locked --bin item-waterway-solver
+
+      - name: Assemble Linux runtime package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          package_name="water-stream-calculator-1171-${tag}-linux"
+          dist="$GITHUB_WORKSPACE/dist"
+          package_root="$dist/$package_name"
+          mkdir -p "$package_root"
+
+          for dir in assets data docs model viewer; do
+            cp -R "$GITHUB_WORKSPACE/$dir" "$package_root/"
+          done
+          cp "$GITHUB_WORKSPACE/README.md" "$package_root/"
+          cp "$GITHUB_WORKSPACE/README.zh-CN.md" "$package_root/"
+          cp "$GITHUB_WORKSPACE/start-linux.sh" "$package_root/"
+          cp "$GITHUB_WORKSPACE/stop-linux.sh" "$package_root/"
+
+          mkdir -p "$package_root/bin/linux"
+          cp "$GITHUB_WORKSPACE/rust-backend/target/release/item-waterway-solver" "$package_root/bin/linux/item-waterway-solver"
+          chmod +x "$package_root/bin/linux/item-waterway-solver" "$package_root/start-linux.sh" "$package_root/stop-linux.sh"
+
+          sample_index="$package_root/data/viewer_data/runs/index.json"
+          sample_run="$package_root/data/viewer_data/runs/run-910002.json"
+          [[ -f "$sample_index" ]] || { echo "Missing bundled viewer run index." >&2; exit 1; }
+          [[ -f "$sample_run" ]] || { echo "Missing bundled Game Storage 0002 data." >&2; exit 1; }
+          grep -q '"run_count"[[:space:]]*:[[:space:]]*1' "$sample_index"
+          grep -q '"display_label"[[:space:]]*:[[:space:]]*"游戏实测2"' "$sample_index"
+
+          tar_path="$dist/$package_name.tar.gz"
+          tar -czf "$tar_path" -C "$dist" "$package_name"
+          hash="$(sha256sum "$tar_path" | awk '{print toupper($1)}')"
+          size="$(stat -c '%s' "$tar_path")"
+
+          echo "asset_path=$tar_path" >> "$GITHUB_OUTPUT"
+          echo "asset_name=$(basename "$tar_path")" >> "$GITHUB_OUTPUT"
+          echo "asset_sha256=$hash" >> "$GITHUB_OUTPUT"
+          echo "asset_size=$size" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test packaged viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          root="$GITHUB_WORKSPACE/dist/water-stream-calculator-1171-${tag}-linux"
+          port="8767"
+          trap '"$root/stop-linux.sh" >/dev/null 2>&1 || true' EXIT
+          "$root/start-linux.sh" --port "$port" --no-browser
+          sleep 1
+          status="$(curl -fsS "http://127.0.0.1:${port}/api/status")"
+          runs="$(curl -fsS "http://127.0.0.1:${port}/api/runs")"
+          echo "$status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+          echo "$status" | grep -Eq '"backend"[[:space:]]*:[[:space:]]*"rust"'
+          echo "$runs" | grep -Eq '"display_label"[[:space:]]*:[[:space:]]*"游戏实测2"'
+
+      - name: Upload Linux workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.asset_name }}
+          path: ${{ steps.package.outputs.asset_path }}
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs:
+      - build-windows
+      - build-linux
+
+    steps:
+      - name: Resolve release ref
+        id: release_ref
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+          if [[ -z "$tag" ]]; then
+            echo "Release tag is empty." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_ASSET: ${{ needs.build-windows.outputs.asset_name }}
+          WINDOWS_SHA256: ${{ needs.build-windows.outputs.asset_sha256 }}
+          WINDOWS_SIZE: ${{ needs.build-windows.outputs.asset_size }}
+          LINUX_ASSET: ${{ needs.build-linux.outputs.asset_name }}
+          LINUX_SHA256: ${{ needs.build-linux.outputs.asset_sha256 }}
+          LINUX_SIZE: ${{ needs.build-linux.outputs.asset_size }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          notes_path="$RUNNER_TEMP/release-notes.md"
+          notes="$(cat <<'NOTES'
+          匀速水道计算器 Windows 与 Linux 发行版，适用于 Minecraft Java Edition 1.17.1。
+
+          本版本提供本地 Rust 后端与浏览器数据 Web，用于设计、穷举、模拟和查看掉落物水道结构。
+
+          ### 支持功能
+
+          - 自定义参数结构穷举：可配置启动方式、模拟时长、线程数、搜索限制和相关模型参数，并在本地运行可达结构候选搜索。
+          - Rust 模型模拟：使用本项目基于 Minecraft 1.17.1 建立的掉落物运动模型进行模拟，覆盖水流推动、重力、碰撞修正、地面摩擦、浮冰、蓝冰和粘液块影响。
+          - 可视化结构编辑：可在本地 Web 中编辑水道结构，并基于编辑后的结构直接运行模拟。
+          - 数据可视化：查看运行摘要、稳态指标、逐 tick 坐标与速度、每格驻留命中率结果，以及交互式图表。
+          - 游戏实测数据对照：发行包内置 `游戏实测2` 示例数据，启动后即可直接在数据 Web 中查看和测试。
+          - 本地 Windows/Linux 运行包：包含已编译 Rust 后端、数据 Web、模型配置、方块贴图资源、文档和启动脚本。
+
+          ### 游戏版本
+
+          - 目标游戏版本：Minecraft Java Edition 1.17.1。
+          - 本发行版未验证其他 Minecraft 版本下的行为一致性。
+
+          ### 验证情况
+
+          - 由 GitHub Actions 从 `__TAG__` tag 构建。
+          - Windows 与 Linux 均会在打包前运行 Rust release 测试。
+          - Windows 与 Linux 发行包均会在上传前启动数据 Web 做检查，确认 Rust 后端可启动，且内置 `游戏实测2` 数据可见。
+
+          ### 发行包
+
+          - Windows zip：`__WINDOWS_ASSET__`
+            - SHA256：`__WINDOWS_SHA256__`
+            - 大小：`__WINDOWS_SIZE__` bytes
+          - Linux tar.gz：`__LINUX_ASSET__`
+            - SHA256：`__LINUX_SHA256__`
+            - 大小：`__LINUX_SIZE__` bytes
+
+          ---
+
+          Windows and Linux release of Water Stream Calculator for Minecraft Java Edition 1.17.1.
+
+          This release provides a local Rust backend and browser-based data viewer for designing, searching, simulating, and inspecting item water-stream structures.
+
+          ### Supported Features
+
+          - Custom parameter structure search: configure launch mode, simulation duration, worker count, search limits, and related model parameters, then run reachable candidate search locally.
+          - Rust model simulation: simulate item movement with the Minecraft 1.17.1 item-motion model used by this project, including water push, gravity, collision response, floor friction, ice, blue ice, and slime block effects.
+          - Visual structure editing: edit waterway structures in the local viewer and run simulations directly from the edited structure.
+          - Data visualization: inspect run summaries, steady-state metrics, per-tick position and speed data, dwell-hit-rate results, and interactive charts.
+          - Game data comparison: bundled sample data includes `游戏实测2`, so the data viewer can be tested immediately after startup.
+          - Local Windows/Linux runtime packages: include the compiled Rust backend, viewer files, model configuration, block texture assets, documentation, and startup scripts.
+
+          ### Game Version
+
+          - Target game version: Minecraft Java Edition 1.17.1.
+          - Behavior on other Minecraft versions has not been validated by this release.
+
+          ### Verification
+
+          - Built by GitHub Actions from the `__TAG__` tag.
+          - Rust release tests are run for both Windows and Linux before packaging.
+          - Both packaged viewers are smoke-tested before upload to confirm the Rust backend starts and the bundled `游戏实测2` data is visible.
+
+          ### Release Assets
+
+          - Windows zip: `__WINDOWS_ASSET__`
+            - SHA256: `__WINDOWS_SHA256__`
+            - Size: `__WINDOWS_SIZE__` bytes
+          - Linux tar.gz: `__LINUX_ASSET__`
+            - SHA256: `__LINUX_SHA256__`
+            - Size: `__LINUX_SIZE__` bytes
+          NOTES
+          )"
+          notes="${notes//__TAG__/$tag}"
+          notes="${notes//__WINDOWS_ASSET__/$WINDOWS_ASSET}"
+          notes="${notes//__WINDOWS_SHA256__/$WINDOWS_SHA256}"
+          notes="${notes//__WINDOWS_SIZE__/$WINDOWS_SIZE}"
+          notes="${notes//__LINUX_ASSET__/$LINUX_ASSET}"
+          notes="${notes//__LINUX_SHA256__/$LINUX_SHA256}"
+          notes="${notes//__LINUX_SIZE__/$LINUX_SIZE}"
+          printf '%s\n' "$notes" > "$notes_path"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+            gh release edit "$tag" \
+              --title "$tag Windows/Linux" \
+              --notes-file "$notes_path" \
+              --latest
+          else
+            gh release create "$tag" release-assets/* \
+              --title "$tag Windows/Linux" \
+              --notes-file "$notes_path" \
+              --latest
+          fi

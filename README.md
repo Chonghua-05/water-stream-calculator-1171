@@ -32,7 +32,9 @@ During reachable-candidate search, prefix evaluation is distributed across worke
 
 The local viewer organizes run data, steady-state metrics, CSV export, and interactive speed charts so movement behavior can be inspected visually against game-captured data.
 
-## Quick Start (Windows)
+## Quick Start
+
+### Windows
 
 Start the local service:
 
@@ -58,15 +60,36 @@ Stop the service:
 .\stop-windows.ps1
 ```
 
+### Linux
+
+Start the local service from the Linux release package:
+
+```bash
+chmod +x ./start-linux.sh ./stop-linux.sh ./bin/linux/item-waterway-solver
+./start-linux.sh --no-browser
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8766
+```
+
+Stop the service:
+
+```bash
+./stop-linux.sh
+```
+
 ## Build From Source
 
-A Windows binary is included under `bin/windows/`. To rebuild manually:
+Release packages include the platform binary for their target system. To rebuild manually:
 
 ```powershell
 cargo build --release --manifest-path .\rust-backend\Cargo.toml
 ```
 
-`start-windows.ps1` uses the bundled binary by default. If the Rust source is newer and `cargo` is available, the script rebuilds and starts the fresh binary.
+The startup scripts use the bundled binary by default. If the Rust source is newer and `cargo` is available, they rebuild and start the fresh binary.
 
 ## Project Layout
 

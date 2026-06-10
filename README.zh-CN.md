@@ -32,7 +32,9 @@ Rust 后端根据 Minecraft 1.17.1 源码建立掉落物运动模型，重点对
 
 本地数据 Web 会整理运行结果、稳态指标、CSV 导出和交互式速度图表，方便直观看到运动变化，并与游戏实测数据对照。
 
-## Windows 快速开始
+## 快速开始
+
+### Windows
 
 启动本地服务：
 
@@ -58,15 +60,36 @@ powershell -ExecutionPolicy Bypass -File .\start-windows.ps1
 .\stop-windows.ps1
 ```
 
+### Linux
+
+从 Linux 发行包启动本地服务：
+
+```bash
+chmod +x ./start-linux.sh ./stop-linux.sh ./bin/linux/item-waterway-solver
+./start-linux.sh --no-browser
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:8766
+```
+
+停止服务：
+
+```bash
+./stop-linux.sh
+```
+
 ## 从源码构建
 
-`bin/windows/` 中已包含 Windows 二进制文件。如需手动重新构建：
+发行包会包含对应平台的二进制文件。如需手动重新构建：
 
 ```powershell
 cargo build --release --manifest-path .\rust-backend\Cargo.toml
 ```
 
-`start-windows.ps1` 默认使用自带二进制文件。如果 Rust 源码更新且本机可用 `cargo`，脚本会重新构建并启动新的二进制文件。
+启动脚本默认使用自带二进制文件。如果 Rust 源码更新且本机可用 `cargo`，脚本会重新构建并启动新的二进制文件。
 
 ## 项目目录
 
