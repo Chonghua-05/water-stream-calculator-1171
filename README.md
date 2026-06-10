@@ -12,6 +12,17 @@ Water Stream Calculator 1.17.1 is a local toolkit for modeling Minecraft 1.17.1 
 - Store runs under the local split-run data format.
 - Open the included sample dataset `游戏实测2` directly in the viewer.
 
+## Technical Highlights
+
+- **Source-aligned item simulation**
+  The movement model follows Minecraft 1.17.1 `ItemEntity` tick behavior, including water pushing, gravity, collision response, ground friction, ice and slime floor effects, and tick-phase details.
+- **Heuristic reachable-candidate search**
+  The generator expands structure prefixes, simulates candidate behavior, scores promising states with speed and cadence metrics, then prunes the frontier before continuing the search.
+- **Parallel Rust simulation testing**
+  During reachable-candidate search, prefix evaluation is distributed across worker threads controlled by the search thread setting. Candidate ranking is heuristic; accepted results are still judged by Rust simulation and hit-rate metrics.
+- **Web-based data inspection**
+  The local viewer organizes run data, steady-state metrics, CSV export, and interactive speed charts so movement behavior can be inspected visually against game-captured data.
+
 ## Quick Start (Windows)
 
 Start the local service:
