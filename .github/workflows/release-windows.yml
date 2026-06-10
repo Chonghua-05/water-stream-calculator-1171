@@ -142,39 +142,71 @@ jobs:
           $notes = @'
           # __TAG__ Windows
 
-          | English | 简体中文 |
-          |---|---|
-          | First Windows release of Water Stream Calculator for Minecraft Java Edition 1.17.1. | 匀速水道计算器首个 Windows 发行版，适用于 Minecraft Java Edition 1.17.1。 |
-          | This release provides a local Rust backend and browser-based data viewer for designing, searching, simulating, and inspecting item water-stream structures. | 本版本提供本地 Rust 后端与浏览器数据 Web，用于设计、穷举、模拟和查看掉落物水道结构。 |
+          ## 中文
 
-          ## Supported Features / 支持功能
+          匀速水道计算器首个 Windows 发行版，适用于 Minecraft Java Edition 1.17.1。
 
-          | English | 简体中文 |
-          |---|---|
-          | Custom parameter structure search: configure launch mode, simulation duration, worker count, search limits, and related model parameters, then run reachable candidate search locally. | 自定义参数结构穷举：可配置启动方式、模拟时长、线程数、搜索限制和相关模型参数，并在本地运行可达结构候选搜索。 |
-          | Rust model simulation: simulate item movement with the Minecraft 1.17.1 item-motion model used by this project, including water push, gravity, collision response, floor friction, ice, blue ice, and slime block effects. | Rust 模型模拟：使用本项目基于 Minecraft 1.17.1 建立的掉落物运动模型进行模拟，覆盖水流推动、重力、碰撞修正、地面摩擦、浮冰、蓝冰和粘液块影响。 |
-          | Visual structure editing: edit waterway structures in the local viewer and run simulations directly from the edited structure. | 可视化结构编辑：可在本地 Web 中编辑水道结构，并基于编辑后的结构直接运行模拟。 |
-          | Data visualization: inspect run summaries, steady-state metrics, per-tick position and speed data, dwell-hit-rate results, and interactive charts. | 数据可视化：查看运行摘要、稳态指标、逐 tick 坐标与速度、每格驻留命中率结果，以及交互式图表。 |
-          | Game data comparison: bundled sample data includes `游戏实测2`, so the data viewer can be tested immediately after startup. | 游戏实测数据对照：发行包内置 `游戏实测2` 示例数据，启动后即可直接在数据 Web 中查看和测试。 |
-          | Local Windows runtime package: includes the compiled Rust backend, viewer files, model configuration, block texture assets, documentation, and startup scripts. | 本地 Windows 运行包：包含已编译 Rust 后端、数据 Web、模型配置、方块贴图资源、文档和启动脚本。 |
+          本版本提供本地 Rust 后端与浏览器数据 Web，用于设计、穷举、模拟和查看掉落物水道结构。
 
-          ## Game Version / 游戏版本
+          ### 支持功能
 
-          | English | 简体中文 |
-          |---|---|
-          | Target game version: Minecraft Java Edition 1.17.1. | 目标游戏版本：Minecraft Java Edition 1.17.1。 |
-          | Behavior on other Minecraft versions has not been validated by this release. | 本发行版未验证其他 Minecraft 版本下的行为一致性。 |
+          - 自定义参数结构穷举：可配置启动方式、模拟时长、线程数、搜索限制和相关模型参数，并在本地运行可达结构候选搜索。
+          - Rust 模型模拟：使用本项目基于 Minecraft 1.17.1 建立的掉落物运动模型进行模拟，覆盖水流推动、重力、碰撞修正、地面摩擦、浮冰、蓝冰和粘液块影响。
+          - 可视化结构编辑：可在本地 Web 中编辑水道结构，并基于编辑后的结构直接运行模拟。
+          - 数据可视化：查看运行摘要、稳态指标、逐 tick 坐标与速度、每格驻留命中率结果，以及交互式图表。
+          - 游戏实测数据对照：发行包内置 `游戏实测2` 示例数据，启动后即可直接在数据 Web 中查看和测试。
+          - 本地 Windows 运行包：包含已编译 Rust 后端、数据 Web、模型配置、方块贴图资源、文档和启动脚本。
 
-          ## Verification / 验证情况
+          ### 游戏版本
 
-          | English | 简体中文 |
-          |---|---|
-          | Built by GitHub Actions on Windows from the `__TAG__` tag. | 由 GitHub Actions 在 Windows 环境中从 `__TAG__` tag 构建。 |
-          | Rust release tests are run before packaging. | 打包前会运行 Rust release 测试。 |
-          | The packaged viewer is smoke-tested before upload to confirm the Rust backend starts and the bundled `游戏实测2` data is visible. | 上传前会对打包后的数据 Web 做启动检查，确认 Rust 后端可启动，且内置 `游戏实测2` 数据可见。 |
+          - 目标游戏版本：Minecraft Java Edition 1.17.1。
+          - 本发行版未验证其他 Minecraft 版本下的行为一致性。
 
-          Asset SHA256: `__ASSET_SHA256__`
-          Asset size: `__ASSET_SIZE__` bytes
+          ### 验证情况
+
+          - 由 GitHub Actions 在 Windows 环境中从 `__TAG__` tag 构建。
+          - 打包前会运行 Rust release 测试。
+          - 上传前会对打包后的数据 Web 做启动检查，确认 Rust 后端可启动，且内置 `游戏实测2` 数据可见。
+
+          ### 发行包
+
+          - Windows zip：`water-stream-calculator-1171-__TAG__-windows.zip`
+          - SHA256：`__ASSET_SHA256__`
+          - 大小：`__ASSET_SIZE__` bytes
+
+          ---
+
+          ## English
+
+          First Windows release of Water Stream Calculator for Minecraft Java Edition 1.17.1.
+
+          This release provides a local Rust backend and browser-based data viewer for designing, searching, simulating, and inspecting item water-stream structures.
+
+          ### Supported Features
+
+          - Custom parameter structure search: configure launch mode, simulation duration, worker count, search limits, and related model parameters, then run reachable candidate search locally.
+          - Rust model simulation: simulate item movement with the Minecraft 1.17.1 item-motion model used by this project, including water push, gravity, collision response, floor friction, ice, blue ice, and slime block effects.
+          - Visual structure editing: edit waterway structures in the local viewer and run simulations directly from the edited structure.
+          - Data visualization: inspect run summaries, steady-state metrics, per-tick position and speed data, dwell-hit-rate results, and interactive charts.
+          - Game data comparison: bundled sample data includes `游戏实测2`, so the data viewer can be tested immediately after startup.
+          - Local Windows runtime package: includes the compiled Rust backend, viewer files, model configuration, block texture assets, documentation, and startup scripts.
+
+          ### Game Version
+
+          - Target game version: Minecraft Java Edition 1.17.1.
+          - Behavior on other Minecraft versions has not been validated by this release.
+
+          ### Verification
+
+          - Built by GitHub Actions on Windows from the `__TAG__` tag.
+          - Rust release tests are run before packaging.
+          - The packaged viewer is smoke-tested before upload to confirm the Rust backend starts and the bundled `游戏实测2` data is visible.
+
+          ### Release Asset
+
+          - Windows zip: `water-stream-calculator-1171-__TAG__-windows.zip`
+          - SHA256: `__ASSET_SHA256__`
+          - Size: `__ASSET_SIZE__` bytes
           '@
           $notes = $notes.Replace("__TAG__", $tag).Replace("__ASSET_SHA256__", $env:ASSET_SHA256).Replace("__ASSET_SIZE__", $env:ASSET_SIZE)
           $notes | Set-Content -LiteralPath $notesPath -Encoding utf8
