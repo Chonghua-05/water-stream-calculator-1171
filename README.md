@@ -1,63 +1,81 @@
 # Water Stream Calculator 1.17.1
 
-Standalone Rust-based toolkit for Minecraft 1.17.1 item water-stream simulation, reachable-candidate search, and local run inspection.
+English | [简体中文](README.zh-CN.md)
 
-[简体中文说明](README.zh-CN.md)
+Water Stream Calculator 1.17.1 is a local toolkit for modeling Minecraft 1.17.1 item movement in water-stream channels. It provides a browser-based structure editor, Rust simulation backend, reachable-candidate search, run inspection, and one sample game-captured dataset.
 
-## Included
+## Features
 
-- `viewer/`
-  Static web UI for structure editing, simulation, run inspection, and search.
-- `rust-backend/`
-  Rust backend source for `serve-web`, simulation, run storage, and reachable-candidate search.
-- `model/config/waterway-structure-parts.json`
-  Published structure-parts config snapshot and grammar reference.
-- `assets/minecraft/textures/block/`
-  Minimal block textures used by the viewer.
-- `data/viewer_data/runs/`
-  Sample viewer dataset containing only `游戏实测2`.
-- `docs/`
-  README, config format doc, model doc, and Rust architecture doc.
+- Edit and inspect water-stream structures in the local viewer.
+- Simulate item movement with the Rust backend.
+- Search reachable structure candidates and promote verified results into viewer runs.
+- Store runs under the local split-run data format.
+- Open the included sample dataset `游戏实测2` directly in the viewer.
 
 ## Quick Start (Windows)
 
-1. Optional rebuild from source:
-
-```powershell
-cargo build --release --manifest-path .\rust-backend\Cargo.toml
-```
-
-2. Start the local service:
+Start the local service:
 
 ```powershell
 .\start-windows.ps1
 ```
 
-3. Open:
+Then open:
 
 ```text
 http://127.0.0.1:8766
 ```
 
-The viewer starts with one sample run already available:
+If PowerShell blocks script execution, run:
 
-- `游戏实测2`
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-windows.ps1
+```
 
-## Runtime Layout
+Stop the service:
 
-- Viewer static files are served from `viewer/`
-- Sample and generated runs live under `data/viewer_data/`
-- Search artifacts are written under `data/reachability-candidate-generator/`
-- Minimal textures are served from `assets/minecraft/textures/block/`
+```powershell
+.\stop-windows.ps1
+```
 
-## Notes
+## Build From Source
 
-- A bundled Windows solver binary is included under `bin/windows/`. If the Rust source is newer and `cargo` is available, `start-windows.ps1` will rebuild and use the fresh binary.
-- The published structure-parts JSON is included as the external config reference. The current Rust search catalog is still compiled into the backend and is documented in the architecture note.
+A Windows binary is included under `bin/windows/`. To rebuild manually:
 
-## Key Files
+```powershell
+cargo build --release --manifest-path .\rust-backend\Cargo.toml
+```
 
-- [`docs/waterway-structure-parts-config.md`](docs/waterway-structure-parts-config.md)
-- [`docs/item-waterway-model-1.17.1.md`](docs/item-waterway-model-1.17.1.md)
-- [`docs/rust-architecture.md`](docs/rust-architecture.md)
-- [`model/config/waterway-structure-parts.json`](model/config/waterway-structure-parts.json)
+`start-windows.ps1` uses the bundled binary by default. If the Rust source is newer and `cargo` is available, the script rebuilds and starts the fresh binary.
+
+## Project Layout
+
+- `viewer/`
+  Static web UI for structure editing, simulation, search, and run inspection.
+- `rust-backend/`
+  Rust backend source for the local service, simulation, run storage, and reachable-candidate search.
+- `model/config/waterway-structure-parts.json`
+  Structure-parts config snapshot and format reference.
+- `assets/minecraft/textures/block/`
+  Minimal block textures used by the viewer.
+- `data/viewer_data/runs/`
+  Viewer run store with the included `游戏实测2` sample.
+- `docs/`
+  Configuration format, model notes, and Rust architecture documentation.
+
+## Runtime Data
+
+- Viewer-visible runs are stored in `data/viewer_data/runs/`.
+- Search diagnostics are written to `data/reachability-candidate-generator/`.
+- Generated data is local to this project folder.
+
+## Configuration
+
+`model/config/waterway-structure-parts.json` documents the structure-parts format used by the project. The current Rust search catalog is still compiled into `rust-backend/src/lib.rs`; the JSON file is kept as the external format reference.
+
+## Documentation
+
+- [Structure parts config](docs/waterway-structure-parts-config.md)
+- [Minecraft 1.17.1 item waterway model](docs/item-waterway-model-1.17.1.md)
+- [Rust architecture](docs/rust-architecture.md)
+- [Structure parts JSON](model/config/waterway-structure-parts.json)

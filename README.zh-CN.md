@@ -1,63 +1,81 @@
 # Water Stream Calculator 1.17.1
 
-Minecraft 1.17.1 掉落物匀速水道计算器，提供水道结构编辑、模型模拟、可达候选搜索和本地结果查看能力。
+[English](README.md) | 简体中文
 
-[English README](README.md)
+Water Stream Calculator 1.17.1 是一个本地运行的 Minecraft 1.17.1 掉落物水道计算器，用于建模掉落物在水道中的运动。项目提供浏览器结构编辑器、Rust 模拟后端、可达候选搜索、结果查看，以及一份游戏实测样例数据。
 
-## 包含内容
+## 功能
 
-- `viewer/`
-  数据 Web 前端，用于结构编辑、模拟、结果查看和搜索。
-- `rust-backend/`
-  Rust 后端源码，负责 `serve-web`、模拟、结果存储和可达候选搜索。
-- `model/config/waterway-structure-parts.json`
-  水道结构部件配置快照和格式参考。
-- `assets/minecraft/textures/block/`
-  前端展示使用的最小方块纹理资源。
-- `data/viewer_data/runs/`
-  自带一份样例数据 `游戏实测2`。
-- `docs/`
-  配置格式文档、模型说明文档和 Rust 架构说明。
+- 在本地数据 Web 中编辑和查看水道结构。
+- 使用 Rust 后端模拟掉落物运动。
+- 搜索可达结构候选，并将通过验证的结果写入数据 Web。
+- 使用本地 split-run 格式保存运行结果。
+- 直接打开自带样例数据 `游戏实测2`。
 
 ## Windows 快速开始
 
-1. 如需从源码重新构建：
-
-```powershell
-cargo build --release --manifest-path .\rust-backend\Cargo.toml
-```
-
-2. 启动本地服务：
+启动本地服务：
 
 ```powershell
 .\start-windows.ps1
 ```
 
-3. 浏览器打开：
+然后打开：
 
 ```text
 http://127.0.0.1:8766
 ```
 
-启动后，数据 Web 默认可见的样例结果为：
+如果 PowerShell 阻止脚本执行，使用：
 
-- `游戏实测2`
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-windows.ps1
+```
 
-## 运行目录
+停止服务：
 
-- 前端静态文件目录：`viewer/`
-- 查看和保存运行结果：`data/viewer_data/`
-- 搜索诊断产物：`data/reachability-candidate-generator/`
-- 方块纹理资源：`assets/minecraft/textures/block/`
+```powershell
+.\stop-windows.ps1
+```
 
-## 说明
+## 从源码构建
 
-- `bin/windows/` 中自带 Windows 版求解器二进制文件；如果 `rust-backend/` 源码更新且本机可用 `cargo`，`start-windows.ps1` 会优先重新构建后启动。
-- `model/config/waterway-structure-parts.json` 作为公开配置格式参考一并提供；当前实际搜索目录仍编译在 Rust 后端中，细节见架构文档。
+`bin/windows/` 中已包含 Windows 二进制文件。如需手动重新构建：
 
-## 关键文件
+```powershell
+cargo build --release --manifest-path .\rust-backend\Cargo.toml
+```
 
-- [`docs/waterway-structure-parts-config.md`](docs/waterway-structure-parts-config.md)
-- [`docs/item-waterway-model-1.17.1.md`](docs/item-waterway-model-1.17.1.md)
-- [`docs/rust-architecture.md`](docs/rust-architecture.md)
-- [`model/config/waterway-structure-parts.json`](model/config/waterway-structure-parts.json)
+`start-windows.ps1` 默认使用自带二进制文件。如果 Rust 源码更新且本机可用 `cargo`，脚本会重新构建并启动新的二进制文件。
+
+## 项目目录
+
+- `viewer/`
+  用于结构编辑、模拟、搜索和结果查看的静态 Web 前端。
+- `rust-backend/`
+  本地服务、模拟、结果存储和可达候选搜索的 Rust 后端源码。
+- `model/config/waterway-structure-parts.json`
+  水道结构部件配置快照和格式参考。
+- `assets/minecraft/textures/block/`
+  前端展示使用的最小方块纹理资源。
+- `data/viewer_data/runs/`
+  数据 Web 的结果存储目录，包含样例数据 `游戏实测2`。
+- `docs/`
+  配置格式、模型说明和 Rust 架构文档。
+
+## 运行数据
+
+- 数据 Web 可见的结果保存在 `data/viewer_data/runs/`。
+- 搜索诊断产物写入 `data/reachability-candidate-generator/`。
+- 生成数据都位于当前项目目录内。
+
+## 配置说明
+
+`model/config/waterway-structure-parts.json` 记录项目使用的结构部件格式。当前 Rust 搜索目录仍编译在 `rust-backend/src/lib.rs` 中；该 JSON 文件作为外部配置格式参考保留。
+
+## 文档
+
+- [结构部件配置格式](docs/waterway-structure-parts-config.md)
+- [Minecraft 1.17.1 掉落物水道模型](docs/item-waterway-model-1.17.1.md)
+- [Rust 架构说明](docs/rust-architecture.md)
+- [结构部件 JSON](model/config/waterway-structure-parts.json)
